@@ -15,7 +15,7 @@ env = gym.make(GAME).unwrapped
 CONFIG = "./config"
 EP_STEP = 300           # maximum episode steps
 GENERATION_EP = 10      # evaluate by the minimum of 10-episode rewards
-TRAINING = False         # training or testing
+TRAINING = True         # training or testing
 CHECKPOINT = 9          # test on this checkpoint
 
 
