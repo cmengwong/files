@@ -22,11 +22,11 @@ from get_laplace_data import read_laplace_data, read_normalized_laplace_data
 # we shouldn't set the eval_threshold.
 # we just have to set a generation time.
 
-file_name = "ESwNN_cuda_128_b2_n.text"
+file_name = "ESwNN_cuda_128_b2.txt"
 N_KID = 10                  # half of the training population
 N_GENERATION = 100         # training step
 LR = .05                    # learning rate
-SIGMA = .2                 # mutation strength or step size
+SIGMA = .1                 # mutation strength or step size
 N_CORE = mp.cpu_count()-1
 
 
@@ -180,10 +180,11 @@ def get_reward(shapes, params, ep_max_step, seed_and_id=None,):
     err_2 = 10
 
     # run 
+    ratioes = []
     for step in range(ep_max_step):
         a = get_action(p, s)
         ratio = float((a+1)) / 10
-
+        ratioes.append(ratio)
         for i in range(1000):
             func(T1, T2, _err, np.float64(ratio), np.int32(n), block=bdim, grid=gdim)
             func(T2, T1, _err, np.float64(ratio), np.int32(n), block=bdim, grid=gdim)
@@ -198,7 +199,7 @@ def get_reward(shapes, params, ep_max_step, seed_and_id=None,):
 
         if max_err < 10e-16: break
 
-    return ep_r
+    return ep_r, ratioes
 
 
 
@@ -254,7 +255,7 @@ def train(net_shapes, net_params, optimizer, utility, b2_r, bs_s):
     '''
     for k_id in range(N_KID*2):
         print("getting the %d child's performance!"% k_id)
-        reward = get_reward(net_shapes, net_params, CONFIG_laplace['ep_max_step'], [noise_seed[k_id], k_id])
+        reward, _ = get_reward(net_shapes, net_params, CONFIG_laplace['ep_max_step'], [noise_seed[k_id], k_id])
         rs.append(reward)
 
     # append the last two best reward
@@ -293,17 +294,12 @@ def train(net_shapes, net_params, optimizer, utility, b2_r, bs_s):
     return net_params + gradients, rewards, b2_r, b2_s
 
 
-if __name__ == "__main__":
+def ESwNN_train():
     # utility instead reward for update parameters (rank transformation)
     base = N_KID * 2 +2    # *2 for mirrored sampling
     rank = np.arange(1, base + 1)
     util_ = np.maximum(0, np.log(base / 2 + 1) - np.log(rank))
     utility = util_ / util_.sum() - 1 / base
-
-
-    with open("ESwNN_file_dr_2.text", "a") as text_file:
-        output_string = "how many cpu in this machine: %d" % mp.cpu_count()
-        text_file.write(output_string)
 
     # training
     net_shapes, net_params = build_net()
@@ -326,16 +322,9 @@ if __name__ == "__main__":
         net_params, kid_rewards, b2_r, bs_s = train(net_shapes, net_params, optimizer, utility, b2_r, b2_s)
 
 
+    return net_shapes, net_params
 
-    # test
-    print("\nTESTING....")
-    '''
-    p = params_reshape(net_shapes, net_params)
-    s = env.reset()
-    for _ in range(CONFIG['ep_max_step']):
-        env.render()
-        a = get_action(p, s, CONFIG['continuous_a'])
-        s, _, done, _ = env.step(a)
-        if done: break
 
-    '''
+
+if __name__ == "__main__":
+    net_shapes, net_params = ESwNN_train()
