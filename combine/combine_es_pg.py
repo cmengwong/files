@@ -2,7 +2,7 @@ import os
 import sys
 import numpy as np
 import tensorflow as tf
-from ESwNN_simple import ESwNN_train, build_net
+from ESwNN_cuda_128 import ESwNN_train, build_net
 from pg_ESwNN import HiddenLayer, PolicyModel
 
 if __name__ == '__main__':
