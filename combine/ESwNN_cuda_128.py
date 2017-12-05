@@ -302,7 +302,7 @@ def ESwNN_train():
     for g in range(two_third_N_GENERATION):
         net_params, kid_rewards, b2_r, b2_s, b_p = train(net_shapes, net_params, optimizer, utility, b2_r, b2_s)
     lower_point = bs_r[0]
-    for g in range(two_third_N_GENERATION, N_GENERATION)
+    for g in range(two_third_N_GENERATION, N_GENERATION):
         net_params, kid_rewards, b2_r, b2_s, b_p = train(net_shapes, net_params, optimizer, utility, b2_r, b2_s)
     higher_point = bs_r[0]
 
