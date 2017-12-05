@@ -404,7 +404,7 @@ def train(pmodel, vmodel, gamma, line):
 				text_file.write(output_string)
 
 	with open(file_name, "a") as text_file:
-	text_file.write("finish!!!!!!!!!!!!!!!")	
+		text_file.write("finish!!!!!!!!!!!!!!!")	
 
 def main():
 	D = 30
