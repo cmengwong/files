@@ -1,21 +1,13 @@
-"""
-Simple code for Distributed ES proposed by OpenAI.
-Based on this paper: Evolution Strategies as a Scalable Alternative to Reinforcement Learning
-Details can be found in : https://arxiv.org/abs/1703.03864
-
-Visit more on my tutorial site: https://morvanzhou.github.io/tutorials/
-"""
 import numpy as np
 import tensorflow as tf
 import gym
 import multiprocessing as mp
 import time
-'''
 import pycuda.driver as cuda
 import pycuda.autoinit
 from pycuda.compiler import SourceModule
-'''
 from get_laplace_data import read_laplace_data, read_normalized_laplace_data
+
 
 
 # in this programme, we use iteration to be the reward r.
@@ -24,8 +16,8 @@ from get_laplace_data import read_laplace_data, read_normalized_laplace_data
 # we just have to set a generation time.
 
 file_name = "ESwNN_cuda_128_b2_ratioes.txt"
-N_KID = 10                  # half of the training population
-N_GENERATION = 2         # training step
+N_KID = 2                  # half of the training population
+N_GENERATION = 60         # training step
 LR = .05                    # learning rate
 SIGMA = .1                 # mutation strength or step size
 N_CORE = mp.cpu_count()-1
@@ -90,7 +82,7 @@ class SGD(object):                      # optimizer with momentum
         self.v = self.momentum * self.v + (1. - self.momentum) * gradients
         return self.lr * self.v
 
-'''
+
 def params_reshape(shapes, params):     # reshape to be a matrix
     p, start = [], 0
     for i, shape in enumerate(shapes):  # flat params to matrix
@@ -102,8 +94,6 @@ def params_reshape(shapes, params):     # reshape to be a matrix
 
 
 def get_reward(shapes, params, ep_max_step, seed_and_id=None,):
-
-    
     # perturb parameters using seed
     if seed_and_id is not None:
         seed, k_id = seed_and_id
@@ -195,9 +185,7 @@ def get_reward(shapes, params, ep_max_step, seed_and_id=None,):
         if max_err < 10e-16: break
     with open(file_name, "a") as text_file:
         text_file.write(np.array_str(np.array(ratioes)) + "\n\n\n")
-    
-    ep_r = []
-    ratioes = []
+
     return ep_r, ratioes
 
 
@@ -214,6 +202,32 @@ def get_action(params, x, layer_size = 3):
     return np.argmax(x, axis=1)[0]      # for discrete action
 
 
+def build_net(layer_size = 3):
+    def linear(n_in, n_out):  # network linear layer
+        w = np.random.randn(n_in * n_out).astype(np.float32) * .1
+        b = np.random.randn(n_out).astype(np.float32) * .1
+        return (n_in, n_out), np.concatenate((w, b))
+    # this code also determine the layer sizes of this network
+    # it means that when we going to change the layer sizes,
+    # we have to change function build_net and get_action
+    
+    s = []
+    p = []
+    M1 = CONFIG_laplace['n_feature']
+    M2 = 30
+    for size in range(layer_size):
+        print(M1, M2)
+        sn, pn = linear(M1, M2)
+        s.append(sn)
+        p.append(pn)
+        M1 = M2
+        M2 = M2 - 10 if (not size == layer_size -2) else CONFIG_laplace['n_action']
+
+    p_out = p[0]
+    for pi in range(1, len(p)):
+        p_out = np.concatenate((p_out, p[pi]))
+    return s, p_out
+
 
 def train(net_shapes, net_params, optimizer, utility, b2_r, b2_s):
     # pass seed instead whole noise matrix to parallel will save your time
@@ -221,7 +235,6 @@ def train(net_shapes, net_params, optimizer, utility, b2_r, b2_s):
 
     rs = []
     b_p = None
-    # distribute training in parallel
 
     for k_id in range(N_KID*2):
         print("getting the %d child's performance!"% k_id)
@@ -262,39 +275,7 @@ def train(net_shapes, net_params, optimizer, utility, b2_r, b2_s):
         cumulative_update += utility[ui] * sign(k_id) * np.random.randn(net_params.size), b_p
 
     gradients = optimizer.get_gradients(cumulative_update/(2*N_KID*SIGMA))
-    return net_params + gradients, rewards, b2_r, b2_s
-
-'''
-
-def build_net(layer_size = 3):
-    def linear(n_in, n_out):  # network linear layer
-        w = np.random.randn(n_in * n_out).astype(np.float32) * .1
-        b = np.random.randn(n_out).astype(np.float32) * .1
-        print(w)
-        print("\n\n")
-        print(b)
-        print("\n\n\n\n")
-        return (n_in, n_out), np.concatenate((w, b))
-    # this code also determine the layer sizes of this network
-    # it means that when we going to change the layer sizes,
-    # we have to change function build_net and get_action
-    
-    s = []
-    p = []
-    M1 = CONFIG_laplace['n_feature']
-    M2 = 30
-    for size in range(layer_size):
-        print(M1, M2)
-        sn, pn = linear(M1, M2)
-        s.append(sn)
-        p.append(pn)
-        M1 = M2
-        M2 = M2 - 10 if (not size == layer_size -2) else CONFIG_laplace['n_action']
-
-    p_out = p[0]
-    for pi in range(1, len(p)):
-        p_out = np.concatenate((p_out, p[pi]))
-    return s, p_out
+    return net_params + gradients, rewards, b2_r, b2_s, b_p
 
 
 def ESwNN_train():
@@ -303,13 +284,10 @@ def ESwNN_train():
     rank = np.arange(1, base + 1)
     util_ = np.maximum(0, np.log(base / 2 + 1) - np.log(rank))
     utility = util_ / util_.sum() - 1 / base
-    b_p = []
 
     # training
     net_shapes, net_params = build_net()
-    #env = gym.make(CONFIG['game']).unwrapped
-    '''
-
+    b_p = net_params
     b2_r = np.zeros(2)
     b2_r[0] = -100000
     b2_r[1] = -100000
@@ -319,17 +297,21 @@ def ESwNN_train():
 
 
     optimizer = SGD(net_params, LR)
-    pool = mp.Pool(processes=N_CORE)
     mar = None      # moving average reward
-    for g in range(N_GENERATION):
-        t0 = time.time()
-        print("\n\ngeneration %d \n\n" % g)
-        net_params, kid_rewards, b2_r, bs_s, b_p = train(net_shapes, net_params, optimizer, utility, b2_r, b2_s)
-    '''
-    b_p = net_params
-    return net_shapes, net_params, b_p
+    two_third_N_GENERATION = int(N_GENERATION*2/3)
+    for g in range(two_third_N_GENERATION):
+        net_params, kid_rewards, b2_r, b2_s, b_p = train(net_shapes, net_params, optimizer, utility, b2_r, b2_s)
+    lower_point = bs_r[0]
+    for g in range(two_third_N_GENERATION, N_GENERATION)
+        net_params, kid_rewards, b2_r, b2_s, b_p = train(net_shapes, net_params, optimizer, utility, b2_r, b2_s)
+    higher_point = bs_r[0]
+
+    line = [higher_point, lower_point] 
+
+    return net_shapes, net_params, b_p, line
+
 
 
 
 if __name__ == "__main__":
-    net_shapes, net_params, b_p = ESwNN_train()
+    net_shapes, net_params, b_p, line = ESwNN_train()
