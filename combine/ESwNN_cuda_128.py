@@ -263,7 +263,7 @@ def train(net_shapes, net_params, optimizer, utility, b2_r, b2_s):
         if(ui == 0):
             b2_r[0] = rewards[k_id]
             b2_s[0] = noise_seed[k_id]
-            b_p = net_params + sign(k_id) * SIGMA * np.random.randn(params.size)
+            b_p = net_params + sign(k_id) * SIGMA * np.random.randn(net_params.size)
         if(ui == 1):
             b2_r[1] = rewards[k_id]
             b2_s[1] = noise_seed[k_id]
