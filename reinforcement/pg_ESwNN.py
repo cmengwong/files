@@ -54,6 +54,10 @@ class HiddenLayer:
 		else:
 			W = np.array(W_E).astype(np.float32)
 			b = np.array(b_E).astype(np.float32)
+			print(W)
+			print("\n\n")
+			print(b)
+			print("\n\n\n\n")
 
 		self.W = tf.Variable(W)
 		self.b = tf.Variable(b)
@@ -70,8 +74,9 @@ class HiddenLayer:
 
 
 class PolicyModel:
-	def __init__(self, D, net_params, net_shapes):
+	def __init__(self, net_params, net_shapes):
 		self.D = net_shapes[0][1]
+		K = 10
 		self.net_shapes = net_shapes
 		self.net_params = net_params
 		self.layers = []
@@ -79,10 +84,10 @@ class PolicyModel:
 		########### copy the data from the ESwNN ###############
 
 		start = 0
-		for i, shape in enumerate(net_shapes):
+		for i, shape in enumerate(self.net_shapes):
 			n_w, n_b = shape[0] * shape[1], shape[1]
-			W_E, b_E = params[start: start + n_w].reshape(shape),
-					params[start + n_w: start + n_w + n_b].reshape((1, shape[1]))
+			W_E, b_E = self.net_params[start: start + n_w].reshape(shape),
+					self.net_params[start + n_w: start + n_w + n_b].reshape((1, shape[1]))
 			layer = HiddenLayer(copy_from_ESwNN = True, W_E = W_E, b_E = b_E)
 			self.layers.append(layer)
 			start += n_w + n_b
@@ -157,7 +162,11 @@ class PolicyModel:
 
 		self.session.run(ops)
 
-	def copy_network_from_ESwNN(self):
+	def partial_fit(self, X, actions, advantages):
+		X = np.atleast_2d(X)
+		actions = np.atleast_1d(actions)
+		advantages = np.atleast_1d(advantages)
+		self.session.run(self.train_op, feed_dict = {self.X : X, self.actions : actions, self.advantages : advantages})
 
 
 

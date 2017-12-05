@@ -9,6 +9,9 @@ import pycuda.autoinit
 from pycuda.compiler import SourceModule
 from get_laplace_data import read_laplace_data, read_normalized_laplace_data
 
+############initial setting#############
+n = 128
+ep_max_step = 10000
 file_name = "pg_random.txt"
 _, _, normalize_data = read_normalized_laplace_data()
 
@@ -123,12 +126,11 @@ class PolicyModel:
 		self.session = session
 
 	def init_vars(self):
-		init_op = tf.variable_initializer(self.params)
+		init_op = tf.variables_initializer(self.params)
 		self.session.run(init_op)
 
 	def predict(self, X):
 		X = np.atleast_2d(X)
-		X = self.tf.transform(X)
 		return self.session.run(self.predict_op, feed_dict = {self.X: X})
 
 	def sample_action(self, X):
@@ -144,8 +146,8 @@ class PolicyModel:
 
 	def copy_from(self, other):
 		ops = []
-		my_params = self.my_params
-		other_params = other.my_params
+		my_params = self.params
+		other_params = other.params
 		for p, q in zip(my_params, other_params):
 			actual = self.session.run(q)
 			op = p.assign(actual)
@@ -155,6 +157,7 @@ class PolicyModel:
 
 	def perturb_params(self):
 		ops = []
+		noise = 0
 		for p in self.params:
 			v = self.session.run(p)
 			noise = np.random.randn(*v.shape) / np.sqrt(v.shape[0]) * 5.0
@@ -163,8 +166,22 @@ class PolicyModel:
 			else:
 				op = p.assign(v + noise)
 			ops.append(op)
+			opn = np.array(self.session.run(op))
+			#with open(file_name, "a") as text_file:
+				#text_file.write(np.array_str(opn)+ "\n\n\n\n\n")
+
 
 		self.session.run(ops)
+
+	def params_reshape(self, shapes, params):     # reshape to be a matrix
+		p, start = [], 0
+		for i, shape in enumerate(shapes):  # flat params to matrix
+			n_w, n_b = shape[0] * shape[1], shape[1]
+			p = p + [params[start: start + n_w].reshape(shape),
+				params[start + n_w: start + n_w + n_b].reshape((1, shape[1]))]
+			self.params[i].
+			start += n_w + n_b
+		return p
 
 
 
@@ -257,40 +274,40 @@ def play_one(pmodel, gamma):
 	return ep_r
 
 
-def play_multiple_episodes(times = 3, pmodel, gamma, print_iters=False):
-	totaleps = np.emtpy(times)
+def play_multiple_episodes(times, pmodel, gamma, print_iters=False):
+	totaleps = np.empty(times)
 
 	for i in range(times):
-		totaleps[i] = play_one(env, pmodel, gamma)
+		totaleps[i] = play_one(pmodel, gamma)
 
 		if print_iters:
 			print(i, "avg so far:", totaleps[:(i+1)].mean())
 
-	avg_totaleps = totaleps.means()
+	avg_totaleps = totaleps.mean()
 	print("avg total eps:", avg_totaleps)
 	return avg_totaleps
 
 
-def random_search(env, pmodel, gamma):
+def random_search(pmodel, gamma):
 	totaleps = []
 	best_avg_totaleps = float('-inf')
 	best_pmodel = pmodel
 	num_episodes_per_param_test = 3
-	for t in range(10):
+	for t in range(100):
 		tmp_pmodel = best_pmodel.copy()
 		tmp_pmodel.perturb_params()
 		avg_totaleps = play_multiple_episodes(num_episodes_per_param_test, tmp_pmodel, gamma)
 		totaleps.append(avg_totaleps)
 
-		if(avg_totaleps > best_avg_totaleps)
+		if(avg_totaleps > best_avg_totaleps):
 			best_avg_totaleps = avg_totaleps
 			best_pmodel = tmp_pmodel
 
-	return totaleps, best_pmodel
+	return np.array(totaleps), best_pmodel
 
 def main():
-	D = 30
-	pmodel = PolicyModel(D, [50, 20], [50, 20])
+	D = 13
+	pmodel = PolicyModel(D, [5], [5])
 	session = tf.InteractiveSession()
 
 	pmodel.set_session(session)
@@ -300,8 +317,9 @@ def main():
 	totaleps, pmodel = random_search(pmodel, gamma)
 
 	print("max reward:", np.max(totaleps))
-    with open(file_name, "a") as text_file:
-        text_file.write("max reward:" + np.array_str(np.max(totaleps)) + "\n")
+	with open(file_name, "a") as text_file:
+		text_file.write("max reward:" + np.array_str(np.max(totaleps)) + "\n")
+		text_file.write(np.array_str(totaleps)+ "\n\n")
 
 if __name__ == '__main__':
 	main()

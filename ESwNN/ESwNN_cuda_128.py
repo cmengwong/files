@@ -22,9 +22,9 @@ from get_laplace_data import read_laplace_data, read_normalized_laplace_data
 # we shouldn't set the eval_threshold.
 # we just have to set a generation time.
 
-file_name = "ESwNN_cuda_128_b2.txt"
+file_name = "ESwNN_cuda_128_b2_ratioes.txt"
 N_KID = 10                  # half of the training population
-N_GENERATION = 100         # training step
+N_GENERATION = 2         # training step
 LR = .05                    # learning rate
 SIGMA = .1                 # mutation strength or step size
 N_CORE = mp.cpu_count()-1
@@ -40,14 +40,7 @@ _, _, normalize_data = read_normalized_laplace_data()
 #~!!!!!! if you change the value of n
 # you should change the bdim or gdim in line 138,139
 n = 128
-CONFIG = [
-    dict(game="CartPole-v0",
-         n_feature=4, n_action=2, continuous_a=[False], ep_max_step=700, eval_threshold=500),
-    dict(game="MountainCar-v0",
-         n_feature=2, n_action=3, continuous_a=[False], ep_max_step=200, eval_threshold=-120),
-    dict(game="Pendulum-v0",
-         n_feature=3, n_action=1, continuous_a=[True, 2.], ep_max_step=200, eval_threshold=-180),
-][0]    # choose your game
+
 CONFIG_laplace = dict(n_feature = 13, n_action = 10, continuous_a = [False], ep_max_step = 10000000, eval_threshold = 10000000)
 
 
@@ -115,7 +108,7 @@ def get_reward(shapes, params, ep_max_step, seed_and_id=None,):
         params += sign(k_id) * SIGMA * np.random.randn(params.size)
     p = params_reshape(shapes, params)
     
-    # run episode
+    ############## gpu setting ####################
 
     T = np.zeros((n,n))
     T[:,0] = 10
@@ -159,12 +152,11 @@ def get_reward(shapes, params, ep_max_step, seed_and_id=None,):
 
       """)
 
-    # gpu setting
     bdim = (16, 16, 1)
     gdim = (8,8,1)
     func = mod.get_function("Laplace")
 
-    # create the first observation 
+    ############## create the first observation ##################### 
     ratio = 1.0
     for i in range(3):
         func(T1, T2, _err, np.float64(ratio), np.int32(n), block=bdim, grid=gdim)
@@ -179,7 +171,7 @@ def get_reward(shapes, params, ep_max_step, seed_and_id=None,):
     err_1 = max_err
     err_2 = 10
 
-    # run 
+    ############# run by the network ######################### 
     ratioes = []
     for step in range(ep_max_step):
         a = get_action(p, s)
@@ -198,6 +190,8 @@ def get_reward(shapes, params, ep_max_step, seed_and_id=None,):
         ep_r -= 1
 
         if max_err < 10e-16: break
+    with open(file_name, "a") as text_file:
+        text_file.write(np.array_str(np.array(ratioes)) + "\n\n\n")
 
     return ep_r, ratioes
 
@@ -242,11 +236,12 @@ def build_net(layer_size = 3):
     return s, p_out
 
 
-def train(net_shapes, net_params, optimizer, utility, b2_r, bs_s):
+def train(net_shapes, net_params, optimizer, utility, b2_r, b2_s):
     # pass seed instead whole noise matrix to parallel will save your time
     noise_seed = np.random.randint(0, 2 ** 32 - 1, size=N_KID, dtype=np.uint32).repeat(2)    # mirrored sampling
 
     rs = []
+    b_p = None
     # distribute training in parallel
     '''
     jobs = [pool.apply_async(get_reward, (net_shapes, net_params, CONFIG['ep_max_step'], CONFIG['continuous_a'], [noise_seed[k_id], k_id], )) for k_id in range(N_KID*2)] # i think that N_KID*2 menas the mirrored sampling
@@ -280,6 +275,7 @@ def train(net_shapes, net_params, optimizer, utility, b2_r, bs_s):
         if(ui == 0):
             b2_r[0] = rewards[k_id]
             b2_s[0] = noise_seed[k_id]
+            b_p = net_params + sign(k_id) * SIGMA * np.random.randn(params.size)
         if(ui == 1):
             b2_r[1] = rewards[k_id]
             b2_s[1] = noise_seed[k_id]
@@ -288,7 +284,7 @@ def train(net_shapes, net_params, optimizer, utility, b2_r, bs_s):
 
         # in the update funciton, the term np.random.randn(net_params.size) somehow use in function get_reward,
         # so we can see the relationship between update and try.
-        cumulative_update += utility[ui] * sign(k_id) * np.random.randn(net_params.size)
+        cumulative_update += utility[ui] * sign(k_id) * np.random.randn(net_params.size), b_p
 
     gradients = optimizer.get_gradients(cumulative_update/(2*N_KID*SIGMA))
     return net_params + gradients, rewards, b2_r, b2_s
@@ -319,12 +315,12 @@ def ESwNN_train():
     for g in range(N_GENERATION):
         t0 = time.time()
         print("\n\ngeneration %d \n\n" % g)
-        net_params, kid_rewards, b2_r, bs_s = train(net_shapes, net_params, optimizer, utility, b2_r, b2_s)
+        net_params, kid_rewards, b2_r, bs_s, b_p = train(net_shapes, net_params, optimizer, utility, b2_r, b2_s)
 
 
-    return net_shapes, net_params
+    return net_shapes, net_params, b_p
 
 
 
 if __name__ == "__main__":
-    net_shapes, net_params = ESwNN_train()
+    net_shapes, net_params, b_p = ESwNN_train()
