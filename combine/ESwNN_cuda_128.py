@@ -272,7 +272,7 @@ def train(net_shapes, net_params, optimizer, utility, b2_r, b2_s):
 
         # in the update funciton, the term np.random.randn(net_params.size) somehow use in function get_reward,
         # so we can see the relationship between update and try.
-        cumulative_update += utility[ui] * sign(k_id) * np.random.randn(net_params.size), b_p
+        cumulative_update += utility[ui] * sign(k_id) * np.random.randn(net_params.size)
 
     gradients = optimizer.get_gradients(cumulative_update/(2*N_KID*SIGMA))
     return net_params + gradients, rewards, b2_r, b2_s, b_p
