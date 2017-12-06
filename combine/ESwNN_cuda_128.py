@@ -17,10 +17,11 @@ from get_laplace_data import read_laplace_data, read_normalized_laplace_data
 
 file_name = "ESwNN_cuda_128_b2_ratioes.txt"
 N_KID = 4                  # half of the training population
-N_GENERATION = 60         # training step
+#N_GENERATION = 60         # training step
 LR = .05                    # learning rate
 SIGMA = .2                 # mutation strength or step size
 N_CORE = mp.cpu_count()-1
+
 
 
 b_r1 = -100000
@@ -278,7 +279,7 @@ def train(net_shapes, net_params, optimizer, utility, b2_r, b2_s):
     return net_params + gradients, rewards, b2_r, b2_s, b_p
 
 
-def ESwNN_train():
+def ESwNN_train(N_GENERATION):
     # utility instead reward for update parameters (rank transformation)
     base = N_KID * 2 +2    # *2 for mirrored sampling
     rank = np.arange(1, base + 1)

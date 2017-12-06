@@ -391,7 +391,7 @@ def random_search(pmodel, gamma):
 
 	return totaleps, best_pmodel
 
-def train(pmodel, vmodel, gamma, line):
+def pg_train(pmodel, vmodel, gamma, line, f_n):
 	train_time = 60
 	costs = np.empty(train_time)
 	iters = np.empty(train_time)
@@ -403,7 +403,7 @@ def train(pmodel, vmodel, gamma, line):
 			with open(file_name, "a") as text_file:
 				text_file.write(output_string)
 
-	with open(file_name, "a") as text_file:
+	with open(f_n, "a") as text_file:
 		text_file.write("finish!!!!!!!!!!!!!!!")	
 
 def main():

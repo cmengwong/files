@@ -3,12 +3,23 @@ import sys
 import numpy as np
 import tensorflow as tf
 from ESwNN_cuda_128 import ESwNN_train, build_net
-from pg_ESwNN import HiddenLayer, PolicyModel
+from pg_ESwNN import HiddenLayer, PolicyModel, ValueModel, play_one, pg_train
 
-if __name__ == '__main__':
+file_name = 'combine_output.txt'
+
+def train_combine(save_network = False):
+	if save_network:
+		N_GENERATION_OF_ES = 60
+	else:
+		N_GENERATION_OF_ES = 1
 	print("ES part")
-	net_shapes, net_params, b_p, line = ESwNN_train()
+	net_shapes, net_params, b_p, line = ESwNN_train(N_GENERATION = N_GENERATION_OF_ES)
 	D = net_shapes[0][0]
 	print("\n\n\n\n pg part")
 	session = tf.InteractiveSession()
-	PolicyModel(D = D, net_params = b_p, net_shapes = net_shapes, session = session, save_network = True)
+	pmodel = PolicyModel(D = D, net_params = b_p, net_shapes = net_shapes, session = session, save_network = save_network)
+	vmodel = ValueModel(D = D, hidden_layer_size = [30, 10])
+	pg_train(pmodel = pmodel, vmodel = vmodel, gamma = gamma, line = line, f_n = file_name)
+
+if __name__ == '__main__':
+	train_combine()
