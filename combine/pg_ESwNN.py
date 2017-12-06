@@ -89,6 +89,7 @@ class PolicyModel:
 	def __init__(self, D, net_params, net_shapes, session = None, save_network = False):
 		self.D = D
 		K = 10
+		layer_num = len(net_shapes)
 		self.net_shapes = net_shapes
 		self.net_params = net_params
 		self.layers = []
@@ -101,7 +102,10 @@ class PolicyModel:
 		for i, shape in enumerate(self.net_shapes):
 			n_w, n_b = shape[0] * shape[1], shape[1]
 			W_E, b_E = self.net_params[start: start + n_w].reshape(shape), self.net_params[start + n_w: start + n_w + n_b].reshape((1, shape[1]))
-			layer = HiddenLayer(copy_from_ESwNN = True, W_E = W_E, b_E = b_E)
+			if i == layer_num - 1:
+				layer = HiddenLayer(copy_from_ESwNN = True, W_E = W_E, b_E = b_E, f = tf.nn.softpuls)
+			else:
+				layer = HiddenLayer(copy_from_ESwNN = True, W_E = W_E, b_E = b_E)
 			self.layers.append(layer)
 			start += n_w + n_b
 
@@ -207,7 +211,7 @@ class ValueModel:
 
 		########### tensorflow setting ###########
 		self.X = tf.placeholder(tf.float32, shape = (None, D), name = 'value_X')
-		self.Y = tf.placeholder(tf.float32, shape = (None, 1), name = 'Y')
+		self.Y = tf.placeholder(tf.float32, shape = (None, ), name = 'Y')
 
 		Z = self.X
 		for layer in layers:
@@ -220,6 +224,10 @@ class ValueModel:
 
 	def set_session(self, session):
 		self.session = session
+
+	def init_vars():
+		init_op = tf.global_variables_initializer()
+		self.session.run(init_op)
 
 	def partial_fit(self, X, Y):
 		X = np.atleast_2d(X)
