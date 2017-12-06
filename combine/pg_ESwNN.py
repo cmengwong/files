@@ -58,13 +58,13 @@ def transfrom_input_of_NN( err, r):
 
 
 class HiddenLayer:
-	def __init__(self, M1 = 0, M2 = 0, f = tf.nn.tanh, use_bias = True, zeros = False, copy_from_ESwNN = False, W_E = 0, b_E = 0):
+	def __init__(self, M1 = 0, M2 = 0, f = tf.nn.relu, use_bias = True, zeros = False, copy_from_ESwNN = False, W_E = 0, b_E = 0):
 		self.use_bias = use_bias
 		if not copy_from_ESwNN:
 			if zeros:
 				W = np.zeros((M1, M2)).astype(np.float32)
 			else:
-				W = np.random_normal(shape = (M1, M2))
+				W = tf.random_normal(shape = (M1, M2))
 			if use_bias:
 				b = np.zeros(M2).astype(np.float32)
 		else:
@@ -89,6 +89,7 @@ class PolicyModel:
 	def __init__(self, D, net_params, net_shapes, session = None, save_network = False):
 		self.D = D
 		K = 10
+		layer_num = len(net_shapes)
 		self.net_shapes = net_shapes
 		self.net_params = net_params
 		self.layers = []
@@ -101,7 +102,10 @@ class PolicyModel:
 		for i, shape in enumerate(self.net_shapes):
 			n_w, n_b = shape[0] * shape[1], shape[1]
 			W_E, b_E = self.net_params[start: start + n_w].reshape(shape), self.net_params[start + n_w: start + n_w + n_b].reshape((1, shape[1]))
-			layer = HiddenLayer(copy_from_ESwNN = True, W_E = W_E, b_E = b_E)
+			if i == layer_num -1 :
+				layer = HiddenLayer(copy_from_ESwNN = True, W_E = W_E, b_E = b_E, f = tf.nn.softmax, use_bias = False)
+			else:
+				layer = HiddenLayer(copy_from_ESwNN = True, W_E = W_E, b_E = b_E)
 			self.layers.append(layer)
 			start += n_w + n_b
 
@@ -192,9 +196,10 @@ class PolicyModel:
 
 
 class ValueModel:
-	def __init__(self, D, hidden_layer_size):
+	def __init__(self, D, hidden_layer_size, session):
 		self.layers = []
 		K = 10
+		self.set_session(session)
 
 		########### build the network ############
 		M1 = D
@@ -207,19 +212,24 @@ class ValueModel:
 
 		########### tensorflow setting ###########
 		self.X = tf.placeholder(tf.float32, shape = (None, D), name = 'value_X')
-		self.Y = tf.placeholder(tf.float32, shape = (None, 1), name = 'Y')
+		self.Y = tf.placeholder(tf.float32, shape = (None, ), name = 'Y')
 
 		Z = self.X
-		for layer in layers:
+		for layer in self.layers:
 			Z = layer.forward(Z)
 		Y_hat = tf.reshape(Z, [-1])
 		self.predict_op = Y_hat
 
 		cost = tf.reduce_sum(tf.square(self.Y - Y_hat))
 		self.train_op = tf.train.AdagradOptimizer(1e-2).minimize(cost)
+		self.init_vars()
 
 	def set_session(self, session):
 		self.session = session
+
+	def init_vars(self):
+		init_op = tf.global_variables_initializer()
+		self.session.run(init_op)
 
 	def partial_fit(self, X, Y):
 		X = np.atleast_2d(X)
@@ -307,7 +317,7 @@ def play_one(pmodel, vmodel, gamma, line):
 	for step in range(ep_max_step):
 		action = pmodel.sample_action(observation)
 		states.append(observation)
-		actoins.append(action)
+		actions.append(action)
 
 		for i in range(1000):
 			func(T1, T2, _err, np.float64(ratio), np.int32(n), block=bdim, grid=gdim)
@@ -351,7 +361,7 @@ def play_one(pmodel, vmodel, gamma, line):
 	for s in reversed(states):
 		returns.append(G)
 		advantages.append(G - vmodel.predict(s)[0])
-		G = rewards + gamma*G
+		G = reward + gamma*G
 	returns.reverse()
 	advantages.reverse()
 
@@ -399,7 +409,7 @@ def pg_train(pmodel, vmodel, gamma, line, f_n):
 	for t in range(train_time):
 		iters[t] = play_one(pmodel = pmodel, vmodel = vmodel, gamma = gamma, line = line)
 		if (t%5 == 0):
-			output_string = "iter : %d\n" % iter[t]
+			output_string = "iter : %d\n" % iters[t]
 			with open(file_name, "a") as text_file:
 				text_file.write(output_string)
 
