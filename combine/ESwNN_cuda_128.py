@@ -16,10 +16,10 @@ from get_laplace_data import read_laplace_data, read_normalized_laplace_data
 # we just have to set a generation time.
 
 file_name = "ESwNN_cuda_128_b2_ratioes.txt"
-N_KID = 2                  # half of the training population
+N_KID = 4                  # half of the training population
 N_GENERATION = 60         # training step
 LR = .05                    # learning rate
-SIGMA = .1                 # mutation strength or step size
+SIGMA = .2                 # mutation strength or step size
 N_CORE = mp.cpu_count()-1
 
 
@@ -183,8 +183,8 @@ def get_reward(shapes, params, ep_max_step, seed_and_id=None,):
         ep_r -= 1
 
         if max_err < 10e-16: break
-    with open(file_name, "a") as text_file:
-        text_file.write(np.array_str(np.array(ratioes)) + "\n\n\n")
+    #with open(file_name, "a") as text_file:
+        #text_file.write(np.array_str(np.array(ratioes)) + "\n\n\n")
 
     return ep_r, ratioes
 
@@ -301,10 +301,10 @@ def ESwNN_train():
     two_third_N_GENERATION = int(N_GENERATION*2/3)
     for g in range(two_third_N_GENERATION):
         net_params, kid_rewards, b2_r, b2_s, b_p = train(net_shapes, net_params, optimizer, utility, b2_r, b2_s)
-    lower_point = bs_r[0]
+    lower_point = b2_r[0]
     for g in range(two_third_N_GENERATION, N_GENERATION):
         net_params, kid_rewards, b2_r, b2_s, b_p = train(net_shapes, net_params, optimizer, utility, b2_r, b2_s)
-    higher_point = bs_r[0]
+    higher_point = b2_r[0]
 
     line = [higher_point, lower_point] 
 
