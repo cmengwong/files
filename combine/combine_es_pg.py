@@ -22,7 +22,7 @@ def train_combine(save_network = False):
 	session.run(init)
 	pmodel = PolicyModel(D = D, net_params = b_p, net_shapes = net_shapes, session = session, save_network = save_network)
 	vmodel = ValueModel(D = D, hidden_layer_size = [30, 10], session = session)
-	pg_train(pmodel = pmodel, vmodel = vmodel, gamma = gamma, line = [51, 80], f_n = file_name)
+	pg_train(pmodel = pmodel, vmodel = vmodel, gamma = gamma, line = [-60, -80], f_n = file_name)
 
 if __name__ == '__main__':
 	train_combine()

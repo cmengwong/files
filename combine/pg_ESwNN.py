@@ -22,7 +22,7 @@ from get_laplace_data import read_laplace_data, read_normalized_laplace_data
 ############initial setting#############
 n = 128
 ep_max_step = 100000
-file_name = "pg_random.txt"
+file_name = "pg_random1.txt"
 _, _, normalize_data = read_normalized_laplace_data()
 
 
@@ -58,7 +58,7 @@ def transfrom_input_of_NN( err, r):
 
 
 class HiddenLayer:
-	def __init__(self, M1 = 0, M2 = 0, f = tf.nn.relu, use_bias = True, zeros = False, copy_from_ESwNN = False, W_E = 0, b_E = 0):
+	def __init__(self, M1 = 0, M2 = 0, f = tf.nn.tanh, use_bias = True, zeros = False, copy_from_ESwNN = False, W_E = 0, b_E = 0):
 		self.use_bias = use_bias
 		if not copy_from_ESwNN:
 			if zeros:
@@ -153,11 +153,13 @@ class PolicyModel:
  
 
 	def show_network(self):
-		for layer in self.layers:
-			print(self.session.run(layer.W))
-			print("\n\n\n\n")
-			print(self.session.run(layer.b))
-			print("\n\n\n\n\n")
+		with open(file_name, "a") as text_file:
+			text_file.write("policy network!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+			for layer in self.layers:
+				w = np.array(self.session.run(layer.W))
+				b = np.array(self.session.run(layer.b))
+				text_file.write(np.array_str(w)+"\n\n\n")
+				text_file.write(np.array_str(b)+"\n\n\n\n\n\n")
 
 
 	def set_session(self, session):
@@ -207,7 +209,7 @@ class ValueModel:
 			layer = HiddenLayer(M1, M2)
 			self.layers.append(layer)
 			M1 = M2
-		layer = HiddenLayer(M1, 1)
+		layer = HiddenLayer(M1 = M1, M2 = 1, f = lambda x:x)
 		self.layers.append(layer)
 
 		########### tensorflow setting ###########
@@ -223,9 +225,20 @@ class ValueModel:
 		cost = tf.reduce_sum(tf.square(self.Y - Y_hat))
 		self.train_op = tf.train.AdagradOptimizer(1e-2).minimize(cost)
 		self.init_vars()
+		#self.show_network()
 
 	def set_session(self, session):
 		self.session = session
+
+	def show_network(self):
+		with open(file_name, "a") as text_file:
+			text_file.write("value network!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+			for layer in self.layers:
+				w = np.array(self.session.run(layer.W))
+				b = np.array(self.session.run(layer.b))
+				text_file.write(np.array_str(w)+"\n\n\n")
+				text_file.write(np.array_str(b)+"\n\n\n\n\n\n")	
+
 
 	def init_vars(self):
 		init_op = tf.global_variables_initializer()
@@ -318,6 +331,7 @@ def play_one(pmodel, vmodel, gamma, line):
 		action = pmodel.sample_action(observation)
 		states.append(observation)
 		actions.append(action)
+		ratio = (action + 1) / 10
 
 		for i in range(1000):
 			func(T1, T2, _err, np.float64(ratio), np.int32(n), block=bdim, grid=gdim)
@@ -332,9 +346,13 @@ def play_one(pmodel, vmodel, gamma, line):
 		# the one episode is finished.
 		if (err_1 < max_err and err_2 < err_1):
 			ep_r -= 20000
-		ep_r -= 3
+		ep_r -= 1
 
 		if max_err < 10e-16: break
+		
+		err_1 = max_err
+		err_2 = err_1
+
 
 	############## train the policy and value network ################
 
@@ -347,7 +365,7 @@ def play_one(pmodel, vmodel, gamma, line):
 
 	# line is the data get from ESwNN,
 	# reward is between -2 and 2
-	reward = ( 2 * (ep_r - line[1]) / (line[0] - line[1]) -1 ) *2
+	reward = (  (ep_r - line[1]) / (line[0] - line[1]) - 0.8 ) * 50
 
 	# knowledge:
 	# advantages represents the update's direction
@@ -362,6 +380,11 @@ def play_one(pmodel, vmodel, gamma, line):
 		returns.append(G)
 		advantages.append(G - vmodel.predict(s)[0])
 		G = reward + gamma*G
+		'''
+		returns.append(reward)
+		advantages.append(G - vmodel.predict(s)[0])
+		G = reward	
+		'''
 	returns.reverse()
 	advantages.reverse()
 
@@ -402,14 +425,14 @@ def random_search(pmodel, gamma):
 	return totaleps, best_pmodel
 
 def pg_train(pmodel, vmodel, gamma, line, f_n):
-	train_time = 60
+	train_time = 600
 	costs = np.empty(train_time)
 	iters = np.empty(train_time)
 	output_string = " "
 	for t in range(train_time):
 		iters[t] = play_one(pmodel = pmodel, vmodel = vmodel, gamma = gamma, line = line)
 		if (t%5 == 0):
-			output_string = "iter : %d\n" % iters[t]
+			output_string = "t :%d \t iter : %d\n" % (t,iters[t])
 			with open(file_name, "a") as text_file:
 				text_file.write(output_string)
 
