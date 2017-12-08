@@ -58,7 +58,7 @@ def transfrom_input_of_NN( err, r):
 
 
 class HiddenLayer:
-	def __init__(self, M1 = 0, M2 = 0, f = tf.nn.relu, use_bias = True, zeros = False, copy_from_ESwNN = False, W_E = 0, b_E = 0):
+	def __init__(self, M1 = 0, M2 = 0, f = tf.nn.tanh, use_bias = True, zeros = False, copy_from_ESwNN = False, W_E = 0, b_E = 0):
 		self.use_bias = use_bias
 		if not copy_from_ESwNN:
 			if zeros:
@@ -115,7 +115,7 @@ class PolicyModel:
 			self.params += layer.params
 
 		self.save_or_load()
-		#self.show_network()
+		self.show_network()
 
 
 		############### set some tensorflow term ############
@@ -153,11 +153,13 @@ class PolicyModel:
  
 
 	def show_network(self):
-		for layer in self.layers:
-			print(self.session.run(layer.W))
-			print("\n\n\n\n")
-			print(self.session.run(layer.b))
-			print("\n\n\n\n\n")
+		with open(file_name, "a") as text_file:
+			text_file.write("policy network!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+			for layer in self.layers:
+				w = np.array(self.session.run(layer.W))
+				b = np.array(self.session.run(layer.b))
+				text_file.write(np.array_str(w)+"\n\n\n")
+				text_file.write(np.array_str(b)+"\n\n\n\n\n\n")
 
 
 	def set_session(self, session):
@@ -207,7 +209,7 @@ class ValueModel:
 			layer = HiddenLayer(M1, M2)
 			self.layers.append(layer)
 			M1 = M2
-		layer = HiddenLayer(M1, 1)
+		layer = HiddenLayer(M1 = M1, M2 = 1, f = lambda x:x)
 		self.layers.append(layer)
 
 		########### tensorflow setting ###########
@@ -223,9 +225,20 @@ class ValueModel:
 		cost = tf.reduce_sum(tf.square(self.Y - Y_hat))
 		self.train_op = tf.train.AdagradOptimizer(1e-2).minimize(cost)
 		self.init_vars()
+		self.show_network()
 
 	def set_session(self, session):
 		self.session = session
+
+	def show_network(self):
+		with open(file_name, "a") as text_file:
+			text_file.write("value network!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+			for layer in self.layers:
+				w = np.array(self.session.run(layer.W))
+				b = np.array(self.session.run(layer.b))
+				text_file.write(np.array_str(w)+"\n\n\n")
+				text_file.write(np.array_str(b)+"\n\n\n\n\n\n")	
+
 
 	def init_vars(self):
 		init_op = tf.global_variables_initializer()
@@ -318,6 +331,7 @@ def play_one(pmodel, vmodel, gamma, line):
 		action = pmodel.sample_action(observation)
 		states.append(observation)
 		actions.append(action)
+		ratio = (action + 1) / 10
 
 		for i in range(1000):
 			func(T1, T2, _err, np.float64(ratio), np.int32(n), block=bdim, grid=gdim)
@@ -359,9 +373,14 @@ def play_one(pmodel, vmodel, gamma, line):
 	advantages = []
 	G = 0
 	for s in reversed(states):
+		'''
 		returns.append(G)
 		advantages.append(G - vmodel.predict(s)[0])
-		G = reward + gamma*G
+		G = r + gamma*G
+		'''
+		returns.append(reward)
+		advantages.append(G - vmodel.predict(s)[0])
+		G = reward
 	returns.reverse()
 	advantages.reverse()
 
@@ -402,7 +421,7 @@ def random_search(pmodel, gamma):
 	return totaleps, best_pmodel
 
 def pg_train(pmodel, vmodel, gamma, line, f_n):
-	train_time = 60
+	train_time = 600
 	costs = np.empty(train_time)
 	iters = np.empty(train_time)
 	output_string = " "
